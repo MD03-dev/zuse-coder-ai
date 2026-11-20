@@ -15,24 +15,22 @@ console = Console()
 API_KEY = os.getenv("AI_API_KEY")
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+# CHỈ GIỮ LẠI NHỮNG MODEL ĐANG HOẠT ĐỘNG THỰC TẾ TRÊN GROQ
 AVAILABLE_MODELS = {
-    "1": "llama-3.1-8b-instant",
-    "2": "llama-3.3-70b-versatile",
-    "3": "qwen/qwen3.8-27b",
-    "4": "openai/gpt-oss-120b",
-    "5": "openai/gpt-oss-20b",
-    "6": "meta-llama/llama-4-scout-17b-16e-instruct",
-    "7": "mixtral-8x7b-32768"
+    "1": "qwen/qwen3.8-27b",
+    "2": "openai/gpt-oss-120b",
+    "3": "openai/gpt-oss-20b",
+    "4": "allam-2-7b"
 }
 
-CURRENT_MODEL = "llama-3.1-8b-instant"
-LANGUAGES = {"1": "Vietnamese", "2": "English", "3": "Chinese", "4": "Russian", "5": "Japanese"}
+CURRENT_MODEL = "qwen/qwen3.8-27b"
+LANGUAGES = {"1": "Vietnamese", "2": "English", "3": "Chinese"}
 CURRENT_LANG = "Vietnamese"
 
-# --- TỐI ƯU TOKEN: Rút gọn System Prompt tối đa ---
 def get_system_prompt():
+    # Ép AI trả lời cực kỳ ngắn gọn, tập trung vào JSON
     return f"""Bạn là Zuse, AI Coder Termux. Ngôn ngữ: {CURRENT_LANG}.
-Quy tắc bắt buộc: Chỉ trả về JSON.
+Quy tắc TỐI THƯỢNG: KHÔNG giải thích dài dòng. CHỈ TRẢ VỀ DUY NHẤT 1 OBJECT JSON.
 - Viết file: {{"action": "write", "path": "f.py", "content": "code"}}
 - Chạy: {{"action": "run", "command": "python f.py"}}
 - Xong: {{"action": "done", "content": "msg"}}
@@ -49,7 +47,7 @@ def show_banner():
 ███████╗╚██████╔╝███████║███████╗
 ╚══════╝ ╚═════╝ ╚══════╝╚══════╝
 [/bold cyan]
-[bold green]ZUSE CODER AI v6.0 - Token Optimized[/bold green]
+[bold green]ZUSE CODER AI v6.1 - Stable Version[/bold green]
 [bold yellow]🤖 Model: {CURRENT_MODEL} | 🌐 Ngôn ngữ: {CURRENT_LANG}[/bold yellow]
 """
     console.print(Panel(banner_text, title="[bold magenta]HỆ ĐIỀU HÀNH AI[/bold magenta]", border_style="cyan", expand=False))
@@ -63,21 +61,10 @@ def show_banner():
     t1.add_row("/clear", "Xóa lịch sử (tiết kiệm token)")
     t1.add_row("/exit", "Thoát")
 
-    t2 = Table(title="Tiện Ích", title_style="bold yellow")
-    t2.add_column("Lệnh", style="cyan", width=15)
-    t2.add_column("Chức năng", style="green")
-    t2.add_row("/exec <lệnh>", "Chạy lệnh")
-    t2.add_row("/ls", "Xem file")
-    t2.add_row("/cat <file>", "Đọc file")
-    t2.add_row("/tokens", "Hướng dẫn tiết kiệm token")
-
     console.print(t1)
-    console.print(t2)
-    console.print("[dim]Gõ /tokens để xem mẹo tiết kiệm token.[/dim]\n")
+    console.print("[dim]Gõ câu lệnh thường để AI viết code.[/dim]\n")
 
-# --- TỐI ƯU TOKEN: Cắt bớt lịch sử chat cũ ---
 def trim_history(messages):
-    # Giữ lại system prompt và tối đa 6 tin nhắn gần nhất
     if len(messages) > 7:
         return [messages[0]] + messages[-6:]
     return messages
@@ -85,7 +72,6 @@ def trim_history(messages):
 def call_ai(messages):
     global CURRENT_MODEL
     headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
-    # Cắt tỉa lịch sử trước khi gửi
     trimmed_messages = trim_history(messages)
     payload = {"model": CURRENT_MODEL, "messages": trimmed_messages}
     
@@ -96,11 +82,9 @@ def call_ai(messages):
         if 'error' in data:
             err_msg = data['error'].get('message', '')
             if 'Rate limit' in err_msg or 'Request too large' in err_msg:
-                console.print(f"[bold red]❌ Hết Token/Phút! Hãy gõ /model chọn số 1 hoặc /clear để xóa lịch sử.[/bold red]")
-            elif 'Invalid API Key' in err_msg:
-                console.print(f"[bold red]❌ Lỗi API Key![/bold red]")
+                console.print(f"[bold red]❌ Hết Token/Phút! Hãy gõ /model chọn số khác hoặc /clear.[/bold red]")
             elif 'does not exist' in err_msg:
-                console.print(f"[bold red]❌ Model {CURRENT_MODEL} không tồn tại.[/bold red]")
+                console.print(f"[bold red]❌ Model {CURRENT_MODEL} đã bị Groq xóa. Hãy gõ /model chọn số khác![/bold red]")
             else:
                 console.print(f"[bold red]❌ Lỗi API: {err_msg}[/bold red]")
             return None
@@ -111,6 +95,7 @@ def call_ai(messages):
         return None
 
 def extract_json(text):
+    # Tìm JSON ngay cả khi AI bọc trong ```json ... ```
     match = re.search(r'\{.*\}', text, re.DOTALL)
     if match:
         try: return json.loads(match.group(0))
@@ -119,24 +104,13 @@ def extract_json(text):
 
 def change_model():
     global CURRENT_MODEL
-    console.print("\n[bold cyan]DANH SÁCH MODEL GROQ:[/bold cyan]")
+    console.print("\n[bold cyan]DANH SÁCH MODEL GROQ ĐANG HOẠT ĐỘNG:[/bold cyan]")
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("STT", width=5)
     table.add_column("Tên Model", style="green")
-    table.add_column("Ghi chú", style="yellow")
-    
-    notes = {
-        "1": "Siêu nhanh, tiết kiệm token nhất",
-        "2": "Thông minh nhất (Tốn token cực nhiều)",
-        "3": "Cân bằng",
-        "4": "Model lớn của OpenAI",
-        "5": "Model nhỏ của OpenAI",
-        "6": "Llama 4",
-        "7": "Mixtral"
-    }
     
     for k, v in AVAILABLE_MODELS.items():
-        table.add_row(k, v, notes.get(k, ""))
+        table.add_row(k, v)
     console.print(table)
     
     choice = Prompt.ask("[bold green]Chọn số thứ tự (0 để hủy)[/bold green]")
@@ -151,21 +125,10 @@ def change_language():
     console.print("\n[bold cyan]CHỌN NGÔN NGỮ:[/bold cyan]")
     for k, v in LANGUAGES.items():
         console.print(f"[{k}] {v}")
-    choice = Prompt.ask("[bold green]Chọn (1-5)[/bold green]")
+    choice = Prompt.ask("[bold green]Chọn (1-3)[/bold green]")
     if choice in LANGUAGES:
         CURRENT_LANG = LANGUAGES[choice]
         console.print(f"[bold green]✅ Đã đổi sang: {CURRENT_LANG}[/bold green]")
-
-def help_tokens():
-    console.print(Panel(
-        "[bold yellow]MẸO TIẾT KIỆM TOKEN TỐI ĐA[/bold yellow]\n\n"
-        "1. [cyan]/clear[/cyan]: Xóa lịch sử chat thường xuyên. Hệ thống chỉ gửi 6 tin nhắn gần nhất để đỡ tốn token.\n"
-        "2. [cyan]/model[/cyan]: Nếu dùng model 70B hay 120B sẽ rất nhanh hết token. Hãy đổi về [green]1 (Llama 3.1 8B)[/green].\n"
-        "3. Chia nhỏ yêu cầu: Đừng bảo viết cả app 1000 dòng. Hãy bảo viết từng hàm một.\n"
-        "4. Code ngắn gọn: Yêu cầu AI 'viết code ngắn gọn, tối giản'.",
-        title="[bold red]Tối ưu Token[/bold red]",
-        border_style="red"
-    ))
 
 def main():
     if not API_KEY:
@@ -184,7 +147,6 @@ def main():
             if user_input.startswith("/"):
                 cmd = user_input.split()[0]
                 if cmd == "/help": show_banner()
-                elif cmd == "/tokens": help_tokens()
                 elif cmd == "/model":
                     change_model()
                     messages = [{"role": "system", "content": get_system_prompt()}]
@@ -193,25 +155,14 @@ def main():
                     messages = [{"role": "system", "content": get_system_prompt()}]
                 elif cmd == "/clear":
                     messages = [{"role": "system", "content": get_system_prompt()}]
-                    console.print("[yellow]Đã xóa lịch sử (Tiết kiệm token).[/yellow]")
-                elif cmd == "/ls":
-                    out, err, _ = execute_command("ls -la")
-                    console.print(Panel(out + err, title="Files", border_style="dim"))
-                elif cmd == "/cat":
-                    file_name = user_input.replace("/cat", "").strip()
-                    out, err, _ = execute_command(f"cat {file_name}")
-                    console.print(Panel(out + err, title=f"Nội dung {file_name}", border_style="dim"))
-                elif cmd == "/exec":
-                    command = user_input.replace("/exec", "").strip()
-                    out, err, code = execute_command(command)
-                    console.print(Panel(out + err, title=f"Exit: {code}", border_style="yellow"))
+                    console.print("[yellow]Đã xóa lịch sử.[/yellow]")
                 else:
                     console.print("[red]Lệnh không hợp lệ.[/red]")
                 continue
 
             messages.append({"role": "user", "content": user_input})
             
-            for step in range(10):
+            for step in range(5): # Giảm số vòng lặp xuống 5 cho an toàn
                 with console.status(f"[bold cyan]Zuse đang code...[/bold cyan]"):
                     response = call_ai(messages)
                 
@@ -221,7 +172,7 @@ def main():
                 if not json_res:
                     console.print(f"[bold yellow]🤖 Zuse:[/bold yellow] {response}")
                     messages.append({"role": "assistant", "content": response})
-                    messages.append({"role": "user", "content": "Lỗi: Chỉ trả về JSON."})
+                    messages.append({"role": "user", "content": "Lỗi: CHỈ TRẢ VỀ JSON, không giải thích."})
                     continue
 
                 messages.append({"role": "assistant", "content": response})
@@ -237,6 +188,7 @@ def main():
                 elif action == "run":
                     cmd = json_res.get("command")
                     console.print(f"[yellow]⚙️ Chạy:[/yellow] {cmd}")
+                    # Tăng timeout lên 60s
                     out, err, code = execute_command(cmd)
                     output = out + err
                     if output.strip():
