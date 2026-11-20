@@ -39,7 +39,7 @@ def show_banner():
 ███████╗╚██████╔╝███████║███████╗
 ╚══════╝ ╚═════╝ ╚══════╝╚══════╝
 [/bold cyan]
-[bold green]ZUSE CODER AI v6.1 - Stable Version[/bold green]
+[bold green]ZUSE CODER AI v6.9.7 - Ultimate Version[/bold green]
 [bold yellow]🤖 Model: {CURRENT_MODEL} | 🌐 Ngôn ngữ: {CURRENT_LANG}[/bold yellow]
 """
     console.print(Panel(banner_text, title="[bold magenta]HỆ ĐIỀU HÀNH AI[/bold magenta]", border_style="cyan", expand=False))

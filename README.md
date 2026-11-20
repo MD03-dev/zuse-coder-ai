@@ -1,8 +1,8 @@
-# 🧠 Zuse Coder AI - Trợ Lý Lập Trình Đa Tác Vụ
+# 🧠 Zuse Coder AI v6.9.7 - Trợ Lý Lập Trình Đa Tác Vụ
 
 > Biến Termux thành môi trường lập trình tự động. Tự viết code, tự test, tự sửa lỗi với giao diện TUI Neon cực chất. Không cần root!
 
-![Version](https://img.shields.io/badge/Version-6.1.0-blueviolet?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-6.9.7-blueviolet?style=for-the-badge)
 ![Termux](https://img.shields.io/badge/Termux-Ready-green?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)
 
@@ -25,13 +25,3 @@ cd zuse-coder-ai
 chmod +x zuse.py
 export AI_API_KEY="key_groq_cua_ban"
 python zuse.py
-
-## 🎮 Các lệnh cơ bản
-- /help: Xem trợ giúp
-- /model: Đổi Model AI (Qwen, GPT-OSS...)
-- /lang: Đổi ngôn ngữ (Việt, Anh, Trung)
-- /clear: Xóa lịch sử chat để tiết kiệm token
-- /exit: Thoát
-
-## 🤝 Đóng góp
-Đừng quên thả 1 Star ⭐ nếu bạn thấy tool hữu ích!
