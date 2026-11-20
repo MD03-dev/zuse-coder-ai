@@ -4,6 +4,7 @@ import sys
 import json
 import requests
 import re
+import time
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -12,7 +13,8 @@ from tools.executor import execute_command
 
 console = Console()
 API_KEY = os.getenv("AI_API_KEY")
-MODEL = "qwen/qwen3.8-27b" 
+# Đổi sang model 8b cho nhẹ và ít bị giới hạn token
+MODEL = "llama-3.1-8b-instant" 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 def load_skills():
@@ -25,35 +27,74 @@ def load_skills():
     return skills_text
 
 SKILLS_PROMPT = load_skills()
-SYSTEM_PROMPT = f"""Bạn là Zuse, một AI Coder chuyên nghiệp cấp cao chạy trên hệ điều hành Termux.
-Bạn PHẢI phản hồi theo định dạng JSON chính xác như sau:
-- Viết file: {{"action": "write", "path": "tên_file.py", "content": "code"}}
-- Chạy lệnh: {{"action": "run", "command": "python tên_file.py"}}
-- Hoàn thành: {{"action": "done", "content": "Báo cáo kết quả"}}
-Kỹ năng của bạn: {SKILLS_PROMPT}
+SYSTEM_PROMPT = f"""Bạn là Zuse, AI Coder chạy trên Termux. Hãy viết code ngắn gọn, súc tích để tránh bị giới hạn token.
+Khi người dùng yêu cầu code, PHẢI dùng action "write" rồi đến "run".
+Định dạng JSON:
+- {{"action": "write", "path": "tên_file.py", "content": "code"}}
+- {{"action": "run", "command": "python tên_file.py"}}
+- {{"action": "done", "content": "Báo cáo"}}
+Kỹ năng: {SKILLS_PROMPT}
 """
 
 def show_banner():
-    banner = Panel.fit(
-        "[bold cyan]🧠 ZUSE CODER AI v2.0[/bold cyan]\n"
-        "[green]Hệ thống AI Đa Tác Vụ (Multi-Agent)[/green]\n"
-        "[yellow]Model: qwen/qwen3.8-27b[/yellow]",
-        title="[bold magenta]HỆ ĐIỀU HÀNH AI[/bold magenta]",
-        border_style="cyan"
-    )
-    console.print(banner)
+    # Xóa màn hình cũ
+    os.system('clear')
     
-    # Bảng hiển thị danh sách lệnh
-    table = Table(title="Danh sách lệnh (Slash Commands)", title_style="bold yellow")
-    table.add_column("Lệnh", style="cyan", no_wrap=True)
-    table.add_column("Chức năng", style="green")
-    table.add_row("/help", "Xem trợ giúp")
-    table.add_row("/clear", "Xóa lịch sử hội thoại")
-    table.add_row("/exec <lệnh>", "Chạy lệnh trực tiếp trên Terminal")
-    table.add_row("/skills", "Xem các kỹ năng AI đang có")
-    table.add_row("/exit", "Thoát chương trình")
-    console.print(table)
-    console.print("[dim]Gõ câu lệnh bình thường (không cần dấu /) để AI viết code.[/dim]\n")
+    banner_text = """
+[bold cyan]
+███████╗██╗   ██╗███████╗███████╗
+╚══███╔╝██║   ██║██╔════╝██╔════╝
+  ███╔╝ ██║   ██║███████╗█████╗  
+ ███╔╝  ██║   ██║╚════██║██╔══╝  
+███████╗╚██████╔╝███████║███████╗
+╚══════╝ ╚═════╝ ╚══════╝╚══════╝
+[/bold cyan]
+[bold green]HỆ ĐIỀU HÀNH AI ĐA TÁC VỤ (MULTI-AGENT)[/bold green]
+[dim]Model hiện tại: llama-3.1-8b-instant | Không cần root[/dim]
+"""
+    console.print(Panel(banner_text, title="[bold magenta]ZUSE CODER AI v3.0[/bold magenta]", border_style="cyan", expand=False))
+    
+    # Bảng 1: Cơ bản
+    t1 = Table(title="Lệnh Cơ Bản", title_style="bold yellow", show_header=True, header_style="bold magenta")
+    t1.add_column("Lệnh", style="cyan", width=15)
+    t1.add_column("Chức năng", style="green")
+    t1.add_row("/help", "Xem trợ giúp")
+    t1.add_row("/exit", "Thoát chương trình")
+    t1.add_row("/clear", "Xóa lịch sử chat")
+    t1.add_row("/reset", "Khởi động lại AI")
+
+    # Bảng 2: Hệ thống
+    t2 = Table(title="Hệ Thống & File", title_style="bold yellow", show_header=True, header_style="bold magenta")
+    t2.add_column("Lệnh", style="cyan", width=15)
+    t2.add_column("Chức năng", style="green")
+    t2.add_row("/exec <lệnh>", "Chạy lệnh Terminal")
+    t2.add_row("/ls", "Xem danh sách file")
+    t2.add_row("/cat <file>", "Đọc nội dung file")
+    t2.add_row("/rm <file>", "Xóa file")
+
+    # Bảng 3: AI & Skills
+    t3 = Table(title="AI & Kỹ Năng", title_style="bold yellow", show_header=True, header_style="bold magenta")
+    t3.add_column("Lệnh", style="cyan", width=15)
+    t3.add_column("Chức năng", style="green")
+    t3.add_row("/skills", "Xem kỹ năng đã nạp")
+    t3.add_row("/model", "Xem model đang dùng")
+    t3.add_row("/system", "Xem Prompt hệ thống")
+    t3.add_row("/history", "Xem lịch sử chat")
+
+    # Bảng 4: Tiện ích
+    t4 = Table(title="Tiện Ích", title_style="bold yellow", show_header=True, header_style="bold magenta")
+    t4.add_column("Lệnh", style="cyan", width=15)
+    t4.add_column("Chức năng", style="green")
+    t4.add_row("/ping", "Kiểm tra mạng")
+    t4.add_row("/time", "Xem giờ hệ thống")
+    t4.add_row("/sysinfo", "Xem thông tin thiết bị")
+    t4.add_row("/df", "Xem dung lượng ổ đĩa")
+
+    console.print(t1)
+    console.print(t2)
+    console.print(t3)
+    console.print(t4)
+    console.print("[dim]Gõ câu lệnh thường để AI viết code. Ví dụ: viet ham tinh tong[/dim]\n")
 
 def call_ai(messages):
     headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
@@ -62,17 +103,14 @@ def call_ai(messages):
         r = requests.post(API_URL, headers=headers, json=payload, timeout=60)
         data = r.json()
         
-        # Kiểm tra lỗi API Key
         if 'error' in data:
             err_msg = data['error'].get('message', '')
-            if 'Invalid API Key' in err_msg or 'Unauthorized' in err_msg:
-                console.print(f"[bold red]❌ LỖI API KEY: Bạn đang dùng sai key! Hãy dùng key Groq (bắt đầu bằng gsk_...), không phải token GitHub (ghp_...).[/bold red]")
+            if 'Rate limit' in err_msg or 'Request too large' in err_msg:
+                console.print(f"[bold red]❌ Lỗi: Bạn đã dùng quá giới hạn token/phút của Groq. Vui lòng đợi 1 phút rồi thử lại![/bold red]")
+            elif 'Invalid API Key' in err_msg or 'Unauthorized' in err_msg:
+                console.print(f"[bold red]❌ Lỗi API Key: Hãy dùng key Groq (gsk_...)![/bold red]")
             else:
                 console.print(f"[bold red]❌ Lỗi API: {err_msg}[/bold red]")
-            return None
-            
-        if 'choices' not in data:
-            console.print(f"[bold red]❌ Lỗi API (Không có choices): {data}[/bold red]")
             return None
             
         return data['choices'][0]['message']['content']
@@ -101,23 +139,52 @@ def main():
             if not user_input: continue
             if user_input == "/exit": break
             
+            # Xử lý Slash Commands
             if user_input.startswith("/"):
                 cmd = user_input.split()[0]
+                
                 if cmd == "/help":
-                    console.print("[cyan]Gõ /clear, /exec, /skills, /exit để điều khiển.[/cyan]")
-                elif cmd == "/clear":
+                    show_banner()
+                elif cmd == "/clear" or cmd == "/reset":
                     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-                    console.print("[yellow]Đã xóa lịch sử.[/yellow]")
+                    console.print("[yellow]Đã xóa lịch sử chat.[/yellow]")
                 elif cmd == "/skills":
                     console.print(f"[cyan]Đã nạp kỹ năng từ thư mục skills/[/cyan]")
+                elif cmd == "/model":
+                    console.print(f"[cyan]Model hiện tại: {MODEL}[/cyan]")
+                elif cmd == "/system":
+                    console.print(Panel(SYSTEM_PROMPT, title="System Prompt", border_style="dim"))
+                elif cmd == "/ls":
+                    out, err, _ = execute_command("ls -la")
+                    console.print(Panel(out + err, title="Danh sách file", border_style="dim"))
+                elif cmd == "/cat":
+                    file_name = user_input.replace("/cat", "").strip()
+                    out, err, _ = execute_command(f"cat {file_name}")
+                    console.print(Panel(out + err, title=f"Nội dung {file_name}", border_style="dim"))
                 elif cmd == "/exec":
                     command = user_input.replace("/exec", "").strip()
                     out, err, code = execute_command(command)
                     console.print(Panel(out + err, title=f"Exit code: {code}", border_style="yellow"))
+                elif cmd == "/sysinfo":
+                    out, err, _ = execute_command("uname -a && free -h")
+                    console.print(Panel(out + err, title="Thông tin thiết bị", border_style="dim"))
+                elif cmd == "/df":
+                    out, err, _ = execute_command("df -h")
+                    console.print(Panel(out + err, title="Dung lượng", border_style="dim"))
+                elif cmd == "/time":
+                    out, err, _ = execute_command("date")
+                    console.print(Panel(out + err, title="Thời gian", border_style="dim"))
+                elif cmd == "/ping":
+                    out, err, _ = execute_command("ping -c 3 google.com")
+                    console.print(Panel(out + err, title="Ping", border_style="dim"))
+                elif cmd == "/history":
+                    history_str = "\n".join([f"{m['role']}: {m['content'][:50]}..." for m in messages[1:]])
+                    console.print(Panel(history_str if history_str else "Trống", title="Lịch sử", border_style="dim"))
                 else:
-                    console.print("[red]Lệnh không hợp lệ.[/red]")
+                    console.print("[red]Lệnh không hợp lệ. Gõ /help để xem danh sách.[/red]")
                 continue
 
+            # Xử lý chat bình thường
             messages.append({"role": "user", "content": user_input})
             
             for step in range(10):
