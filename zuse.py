@@ -6,6 +6,7 @@ import requests
 import re
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
 from rich.markdown import Markdown
 from tools.executor import execute_command
 
@@ -14,7 +15,6 @@ API_KEY = os.getenv("AI_API_KEY")
 MODEL = "qwen/qwen3.8-27b" 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Đọc tất cả Skill trong thư mục
 def load_skills():
     skills_text = ""
     if os.path.exists("skills"):
@@ -25,39 +25,59 @@ def load_skills():
     return skills_text
 
 SKILLS_PROMPT = load_skills()
-
 SYSTEM_PROMPT = f"""Bạn là Zuse, một AI Coder chuyên nghiệp cấp cao chạy trên hệ điều hành Termux.
-Bạn là một hệ thống Multi-Agent, có khả năng tự động viết code, test và sửa lỗi.
-
-Dưới đây là các KỸ NĂNG (Skills) bạn có thể sử dụng:
-{SKILLS_PROMPT}
-
 Bạn PHẢI phản hồi theo định dạng JSON chính xác như sau:
 - Viết file: {{"action": "write", "path": "tên_file.py", "content": "code"}}
 - Chạy lệnh: {{"action": "run", "command": "python tên_file.py"}}
 - Hoàn thành: {{"action": "done", "content": "Báo cáo kết quả"}}
-
-Hãy suy nghĩ từng bước một. Khi viết code, hãy chú ý áp dụng các Skill đã được dạy.
+Kỹ năng của bạn: {SKILLS_PROMPT}
 """
 
 def show_banner():
     banner = Panel.fit(
         "[bold cyan]🧠 ZUSE CODER AI v2.0[/bold cyan]\n"
         "[green]Hệ thống AI Đa Tác Vụ (Multi-Agent)[/green]\n"
-        "[yellow]Gõ /help để xem các lệnh[/yellow]",
+        "[yellow]Model: qwen/qwen3.8-27b[/yellow]",
         title="[bold magenta]HỆ ĐIỀU HÀNH AI[/bold magenta]",
         border_style="cyan"
     )
     console.print(banner)
+    
+    # Bảng hiển thị danh sách lệnh
+    table = Table(title="Danh sách lệnh (Slash Commands)", title_style="bold yellow")
+    table.add_column("Lệnh", style="cyan", no_wrap=True)
+    table.add_column("Chức năng", style="green")
+    table.add_row("/help", "Xem trợ giúp")
+    table.add_row("/clear", "Xóa lịch sử hội thoại")
+    table.add_row("/exec <lệnh>", "Chạy lệnh trực tiếp trên Terminal")
+    table.add_row("/skills", "Xem các kỹ năng AI đang có")
+    table.add_row("/exit", "Thoát chương trình")
+    console.print(table)
+    console.print("[dim]Gõ câu lệnh bình thường (không cần dấu /) để AI viết code.[/dim]\n")
 
 def call_ai(messages):
     headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
     payload = {"model": MODEL, "messages": messages}
     try:
         r = requests.post(API_URL, headers=headers, json=payload, timeout=60)
-        return r.json()['choices'][0]['message']['content']
+        data = r.json()
+        
+        # Kiểm tra lỗi API Key
+        if 'error' in data:
+            err_msg = data['error'].get('message', '')
+            if 'Invalid API Key' in err_msg or 'Unauthorized' in err_msg:
+                console.print(f"[bold red]❌ LỖI API KEY: Bạn đang dùng sai key! Hãy dùng key Groq (bắt đầu bằng gsk_...), không phải token GitHub (ghp_...).[/bold red]")
+            else:
+                console.print(f"[bold red]❌ Lỗi API: {err_msg}[/bold red]")
+            return None
+            
+        if 'choices' not in data:
+            console.print(f"[bold red]❌ Lỗi API (Không có choices): {data}[/bold red]")
+            return None
+            
+        return data['choices'][0]['message']['content']
     except Exception as e:
-        console.print(f"[bold red]❌ Lỗi API: {e}[/bold red]")
+        console.print(f"[bold red]❌ Lỗi kết nối mạng: {e}[/bold red]")
         return None
 
 def extract_json(text):
@@ -69,7 +89,7 @@ def extract_json(text):
 
 def main():
     if not API_KEY:
-        console.print("[bold red]❌ Thiếu AI_API_KEY. Chạy: export AI_API_KEY='...'[/bold red]")
+        console.print("[bold red]❌ Thiếu AI_API_KEY. Chạy: export AI_API_KEY='gsk_...'[/bold red]")
         sys.exit(1)
 
     show_banner()
@@ -78,32 +98,28 @@ def main():
     while True:
         try:
             user_input = console.input("\n[bold green]Zuse > [/bold green]").strip()
-            
             if not user_input: continue
             if user_input == "/exit": break
             
-            # Xử lý Slash Commands
             if user_input.startswith("/"):
                 cmd = user_input.split()[0]
                 if cmd == "/help":
-                    console.print("[cyan]/help: Xem trợ giúp | /clear: Xóa lịch sử | /exec <lệnh>: Chạy lệnh trực tiếp | /skills: Xem danh sách skill[/cyan]")
+                    console.print("[cyan]Gõ /clear, /exec, /skills, /exit để điều khiển.[/cyan]")
                 elif cmd == "/clear":
                     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-                    console.print("[yellow]Đã xóa lịch sử hội thoại.[/yellow]")
+                    console.print("[yellow]Đã xóa lịch sử.[/yellow]")
                 elif cmd == "/skills":
-                    console.print(f"[cyan]Đã nạp {len(SKILLS_PROMPT)} ký tự kỹ năng từ thư mục skills/[/cyan]")
+                    console.print(f"[cyan]Đã nạp kỹ năng từ thư mục skills/[/cyan]")
                 elif cmd == "/exec":
                     command = user_input.replace("/exec", "").strip()
                     out, err, code = execute_command(command)
                     console.print(Panel(out + err, title=f"Exit code: {code}", border_style="yellow"))
                 else:
-                    console.print("[red]Lệnh không hợp lệ. Gõ /help[/red]")
+                    console.print("[red]Lệnh không hợp lệ.[/red]")
                 continue
 
-            # Thêm lệnh của user vào lịch sử
             messages.append({"role": "user", "content": user_input})
             
-            # Vòng lặp Agent
             for step in range(10):
                 with console.status(f"[bold cyan]Zuse đang suy nghĩ (Bước {step+1})...[/bold cyan]"):
                     response = call_ai(messages)
@@ -112,7 +128,6 @@ def main():
                 
                 json_res = extract_json(response)
                 if not json_res:
-                    console.print("[red]AI trả lời sai JSON. Đang thử lại...[/red]")
                     messages.append({"role": "assistant", "content": response})
                     messages.append({"role": "user", "content": "Lỗi định dạng. Hãy trả về JSON."})
                     continue
